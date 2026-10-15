@@ -125,8 +125,9 @@ function movePlayer(game, input, dt, platforms) {
   const direction = Number(Boolean(input.right)) - Number(Boolean(input.left));
   if (direction) player.facing = direction;
   if (player.knockback <= 0) {
-    const speed = player.sliding ? 5.4 : input.sprint ? 8 : 6;
-    player.vx = approach(player.vx, direction * speed, (direction ? 46 : 38) * dt);
+    const speed = player.sliding ? 5.4 : input.sneak ? 2.2 : input.sprint ? 8 : 6;
+    const icy = player.grounded && player.y === 0 && player.x >= 48 && player.x < 72;
+    player.vx = approach(player.vx, direction * speed, (icy ? direction ? 22 : 8 : direction ? 46 : 38) * dt);
   }
   if (player.jumpBuffer > 0 && !player.sliding && (player.coyote > 0 || (game.doubleJumpUnlocked && player.jumps === 1 && jumpPressed))) {
     const double = player.coyote <= 0;
@@ -181,7 +182,7 @@ function movePlayer(game, input, dt, platforms) {
     event(game, 'checkpoint');
   }
   if (game.time >= player.animationUntil) {
-    player.animation = player.sliding ? 'slide' : !player.grounded ? player.vy > 0 ? player.jumps === 2 ? 'doubleJump' : 'jump' : 'fall' : Math.abs(player.vx) > 0.2 ? 'run' : 'idle';
+    player.animation = player.sliding ? 'slide' : !player.grounded ? player.vy > 0 ? player.jumps === 2 ? 'doubleJump' : 'jump' : 'fall' : Math.abs(player.vx) > 0.2 ? input.sneak ? 'sneak' : input.sprint ? 'run' : 'walk' : 'idle';
   }
   if (player.grounded && Math.abs(player.vx) > 2 && game.time > game.nextFootstep) {
     game.nextFootstep = game.time + 0.28;
@@ -189,7 +190,7 @@ function movePlayer(game, input, dt, platforms) {
   }
 }
 
-function updateSecurity(game, dt) {
+function updateSecurity(game, input, dt) {
   const player = game.player;
   const height = player.sliding ? SLIDE_HEIGHT : PLAYER_HEIGHT;
   const disabled = game.disabledUntil > game.time;
@@ -219,7 +220,20 @@ function updateSecurity(game, dt) {
   }
   for (const enemy of game.enemies) {
     const dx = player.x - enemy.x;
-    const nearby = Math.abs(dx) < (enemy.type === 'drone' ? 5.2 : 4.5) && Math.abs(player.y - enemy.y) < (enemy.type === 'drone' ? 5 : 1.5)
+    if (enemy.type === 'cart') {
+      const touching = Math.abs(dx) < 1 && player.y < .85;
+      if (touching && input.interact) {
+        enemy.facing = player.facing;
+        enemy.pushedUntil = game.time + 1.4;
+      }
+      const pushed = enemy.pushedUntil > game.time;
+      enemy.x = clamp(enemy.x + enemy.facing * (pushed ? 4.5 : 1.35) * dt, enemy.minX, enemy.maxX);
+      if (enemy.x <= enemy.minX || enemy.x >= enemy.maxX) { enemy.facing *= -1; enemy.pushedUntil = 0; }
+      if (touching && !input.interact && !pushed && Math.sign(dx) === enemy.facing) damage(game, enemy.x, 'cart');
+      if (game.status !== 'playing') return;
+      continue;
+    }
+    const nearby = Math.abs(dx) < (input.sneak ? 1.7 : 4.5) && Math.abs(player.y - enemy.y) < 1.5
       && player.x >= enemy.minX - 1 && player.x <= enemy.maxX + 1;
     if (disabled) {
       enemy.state = 'disabled';
@@ -236,20 +250,10 @@ function updateSecurity(game, dt) {
     if (enemy.state === 'disabled') enemy.state = 'patrol';
     if (enemy.state === 'chase') {
       enemy.facing = dx < 0 ? -1 : 1;
-      const speed = enemy.type === 'drone' ? game.alarm >= 100 ? 4 : 2.8 : 2.6;
+      const speed = game.alarm >= 100 ? 3.5 : 2.6;
       enemy.x = clamp(enemy.x + enemy.facing * speed * dt, enemy.minX, enemy.maxX);
-      if (enemy.type === 'drone') {
-        enemy.y = approach(enemy.y, player.y + 2.5, dt * 1.1);
-        if (game.time > enemy.fireAt) {
-          enemy.fireAt = game.time + 2.2;
-          const targetY = player.y + height / 2;
-          const distance = Math.max(0.1, Math.hypot(dx, targetY - enemy.y));
-          game.projectiles.push({ id: `${enemy.id}-${game.time}`, x: enemy.x, y: enemy.y - 0.3, vx: dx / distance * 4, vy: (targetY - enemy.y) / distance * 4, life: 2.3, warning: 0.4 });
-          event(game, 'warning', { x: enemy.x, y: enemy.y });
-        }
-      }
     } else {
-      enemy.x += enemy.facing * (enemy.type === 'drone' ? 1.4 : 1.1) * dt;
+      enemy.x += enemy.facing * 1.1 * dt;
       if (enemy.x <= enemy.minX || enemy.x >= enemy.maxX) {
         enemy.x = clamp(enemy.x, enemy.minX, enemy.maxX);
         enemy.facing *= -1;
@@ -257,8 +261,8 @@ function updateSecurity(game, dt) {
       enemy.y = approach(enemy.y, enemy.homeY, dt);
       if (Math.abs(enemy.y - enemy.homeY) < 0.05) enemy.state = 'patrol';
     }
-    const enemyCenter = enemy.y + (enemy.type === 'guardian' ? 0.75 : 0);
-    if (Math.abs(player.x - enemy.x) < (enemy.type === 'guardian' ? 0.7 : 0.65) && Math.abs(player.y + height / 2 - enemyCenter) < 1) damage(game, enemy.x, enemy.type);
+    const enemyCenter = enemy.y + 0.75;
+    if (Math.abs(player.x - enemy.x) < 0.7 && Math.abs(player.y + height / 2 - enemyCenter) < 1) damage(game, enemy.x, enemy.type);
     if (game.status !== 'playing') return;
   }
   for (const projectile of game.projectiles) {
@@ -305,7 +309,7 @@ function updateObjectives(game, input, dt) {
   const nearVault = Math.abs(player.x - level.vault.x) < 2 && player.y < 1.6;
   const required = Math.min(3, level.artifacts.length);
   if (nearVault && !game.vaultOpen) {
-    game.prompt = game.collected.size < required ? `Find ${required - game.collected.size} more artifacts to unlock the vault` : 'Hold E · crack the vault';
+    game.prompt = game.collected.size < required ? `Find ${required - game.collected.size} more groceries to unlock checkout` : 'Hold E · scan loot at checkout';
     if (input.interact && game.collected.size >= required) {
       game.terminalProgress = Math.min(1, game.terminalProgress + dt / 0.7);
       player.animation = 'hack';
@@ -336,7 +340,8 @@ function updateObjectives(game, input, dt) {
       }
     } else game.terminalProgress = 0;
   } else game.terminalProgress = 0;
-  if (player.x > level.vault.x + 3 && !game.vaultOpen) game.prompt = 'The vault is still locked · return to the vault terminal';
+  if (!game.prompt && game.enemies.some(e => e.type === 'cart' && Math.abs(e.x - player.x) < 1.5 && player.y < 1)) game.prompt = 'Hold E · push shopping cart';
+  if (player.x > level.vault.x + 3 && !game.vaultOpen) game.prompt = 'Checkout is locked · return to the scanner';
   if (player.x >= level.exit.x - 0.7 && game.vaultOpen) finish(game, 'won');
 }
 
@@ -362,7 +367,7 @@ export function stepGame(game, input = {}, dt = FIXED_STEP) {
   }
   movePlayer(game, input, dt, solids(game));
   if (game.status !== 'playing') return;
-  updateSecurity(game, dt);
+  updateSecurity(game, input, dt);
   if (game.status !== 'playing') return;
   updateObjectives(game, input, dt);
   if (game.status !== 'playing') return;

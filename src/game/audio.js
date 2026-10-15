@@ -1,9 +1,10 @@
 const effects = {
   jump: [220, 600, .11, 'square'], land: [100, 45, .08, 'triangle'],
-  pickup: [660, 1320, .16, 'sine'], damage: [150, 40, .22, 'sawtooth'],
+  collect: [660, 1320, .16, 'sine'], damage: [150, 40, .22, 'sawtooth'],
   detection: [380, 580, .15, 'square'], alert: [380, 580, .15, 'square'],
-  vault: [130, 520, .7, 'triangle'], win: [440, 1760, .6, 'sine'],
-  select: [550, 820, .06, 'sine'], step: [60, 35, .025, 'triangle'],
+  vault: [880, 1320, .16, 'sine'], victory: [440, 1760, .6, 'sine'],
+  hack: [880, 1320, .12, 'sine'], doubleJump: [440, 880, .12, 'square'],
+  select: [550, 820, .06, 'sine'], footstep: [60, 35, .025, 'triangle'],
 };
 
 export function createAudio() {

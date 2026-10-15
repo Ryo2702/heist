@@ -19,7 +19,7 @@ function start(course = level()) {
 test('course and artifact metadata are deterministic, with a continuous valid ground route', () => {
   assert.deepEqual(level(), level());
   assert.notEqual(level('different').id, level().id);
-  assert.notEqual(generateLevel({ seed: 'test-course', artifacts: samples, version: '2' }).id, level().id);
+  assert.notEqual(generateLevel({ seed: 'test-course', artifacts: samples, version: '1' }).id, level().id);
   for (let index = 0; index < 100; index += 1) {
     const course = level(`wallet-${index}`);
     const floors = course.platforms.filter((platform) => platform.floor);
@@ -143,11 +143,11 @@ test('a simulated demo run collects artifacts, unlocks the vault, persists and s
     const vault = !game.vaultOpen && player.x > 112.7;
     const nearbyLaser = game.lasers.find((laser) => laser.x > player.x && laser.x - player.x < 1.15);
     const wait = nearbyLaser && (nearbyLaser.active || nearbyLaser.warning);
-    const guardian = game.enemies.find((enemy) => enemy.type === 'guardian' && enemy.x - player.x > 0 && enemy.x - player.x < 3.3);
+    const guardian = game.enemies.find((enemy) => ['guardian', 'cart'].includes(enemy.type) && enemy.x - player.x > 0 && enemy.x - player.x < 3.3);
     const jumpPressed = Boolean(guardian && player.grounded && jumpHeld <= 0);
     if (jumpPressed) jumpHeld = 0.55;
     jumpHeld -= FIXED_STEP;
-    stepGame(game, { right: !vault && !wait, sprint: true, slide: !guardian && jumpHeld <= 0, jump: jumpHeld > 0, jumpPressed, interact: vault }, FIXED_STEP);
+    stepGame(game, { right: !vault && !wait, sprint: true, slide: !guardian && jumpHeld <= 0, jump: jumpHeld > 0, jumpPressed, interact: vault || game.enemies.some(e => e.type === 'cart' && Math.abs(e.x - player.x) < 1.5) }, FIXED_STEP);
   }
   assert.equal(game.status, 'won', `bot ended ${game.status} at x=${game.player.x}, hp=${game.player.health}, artifacts=${game.collected.size}`);
   assert.ok(game.collected.size >= 3);
@@ -177,4 +177,47 @@ test('a simulated demo run collects artifacts, unlocks the vault, persists and s
 test('elevators remain within the declared reachable range', () => {
   const platform = level().platforms.find((entry) => entry.moving);
   for (let time = 0; time < 10; time += 0.1) assert.ok(Math.abs(platformPosition(platform, time).y - platform.y) <= platform.moving.amplitude);
+});
+
+test('supermarket zones retain continuous geometry and carts can be pushed safely', () => {
+  const game = start();
+  assert.deepEqual(game.level.zones.map(zone => zone.name), ['Fresh Produce', 'Grocery Aisles', 'Frozen Section', 'Security Office', 'Checkout Escape']);
+  assert.equal(game.level.zones.at(-1).end, game.level.length);
+  assert.ok(game.enemies.every(enemy => enemy.type !== 'drone'));
+  game.lasers = []; game.cameras = [];
+  const cart = game.enemies.find(enemy => enemy.type === 'cart');
+  game.enemies = [cart]; game.player.x = cart.x - .8; game.player.facing = 1;
+  const before = cart.x, health = game.player.health;
+  tick(game, .25, { interact: true });
+  assert.ok(cart.x > before + .9);
+  assert.equal(game.player.health, health);
+  assert.ok(cart.pushedUntil > game.time);
+});
+
+test('frozen ground has predictable traction and sneak/walk/run remain separate animations', () => {
+  const clean = x => { const game = start(); game.enemies = []; game.lasers = []; game.cameras = []; game.player.x = x; return game; };
+  const ice = clean(50), normal = clean(20);
+  ice.player.vx = normal.player.vx = 6;
+  tick(ice, .2); tick(normal, .2);
+  assert.ok(ice.player.vx > 4); assert.equal(normal.player.vx, 0);
+  for (const [input, animation] of [[{right:true}, 'walk'], [{right:true,sprint:true}, 'run'], [{right:true,sneak:true}, 'sneak']]) {
+    const game = clean(25); tick(game, .2, input);
+    assert.equal(game.player.animation, animation);
+  }
+});
+
+test('guards detect, chase, return to patrol, and accelerate at maximum alarm', () => {
+  const setup = () => {
+    const game=start(); game.lasers=[]; game.cameras=[];
+    game.enemies=game.enemies.filter(e=>e.type==='guardian').slice(0,1);
+    game.player.x=game.enemies[0].x-3;
+    return game;
+  };
+  const normal=setup(), sneaking=setup(), alarmed=setup(); alarmed.alarm=100;
+  stepGame(normal); stepGame(sneaking,{sneak:true}); stepGame(alarmed);
+  assert.equal(normal.enemies[0].state,'chase');
+  assert.equal(sneaking.enemies[0].state,'patrol');
+  assert.ok(alarmed.enemies[0].x<normal.enemies[0].x);
+  normal.player.x=2; tick(normal,3);
+  assert.equal(normal.enemies[0].state,'patrol');
 });

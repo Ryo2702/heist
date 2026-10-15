@@ -5,7 +5,7 @@ import { MAX_RUN_TIME as MAX_TIME } from './engine.js';
 const STORAGE_KEY = 'sol-heist-runs-v1';
 const MAX_FRAMES = 27_001;
 const MAX_URL = 7500;
-const ANIMATIONS = ['idle', 'run', 'jump', 'doubleJump', 'fall', 'landing', 'slide', 'collect', 'damage', 'hack', 'victory', 'defeat'];
+const ANIMATIONS = ['idle', 'run', 'jump', 'doubleJump', 'fall', 'landing', 'slide', 'collect', 'damage', 'hack', 'victory', 'defeat', 'walk', 'sneak'];
 
 function validFrames(frames) {
   if (!Array.isArray(frames) || !frames.length || frames.length > MAX_FRAMES) return false;
@@ -45,6 +45,31 @@ export function sampleReplay(frames, time) {
     }
   }
   return frame;
+}
+
+// Playback consumes recorded state only; it never advances enemy AI or physics.
+export function applyReplay(game, replay, time) {
+  const frame = sampleReplay(replay.frames, time);
+  if (!frame) return;
+  const { security, ...player } = frame;
+  Object.assign(game.player, player);
+  game.time = time;
+  if (security) {
+    for (const key of ['enemies', 'lasers', 'cameras', 'terminals', 'projectiles']) {
+      game[key] = (security[key] || []).map(actor => ({ ...game.level[key]?.find(e => e.id === actor.id), ...actor }));
+    }
+    game.alarm = security.alarm;
+    game.disabledUntil = security.disabledUntil;
+    game.player.health = security.health;
+    game.player.invincible = security.invincible;
+  } else {
+    // Older saved ghosts have no world snapshots; don't invent security movement.
+    game.enemies = []; game.lasers = []; game.cameras = []; game.projectiles = [];
+  }
+  game.events = (replay.events || []).filter(event => event.time <= time);
+  game.collected = new Set(game.events.filter(event => event.type === 'collect').map(event => event.artifactId));
+  game.vaultOpen = game.events.some(event => event.type === 'vault');
+  game.zone = Math.max(0, game.level.zones.findIndex(zone => game.player.x >= zone.start && game.player.x < zone.end));
 }
 
 function validRun(run) {

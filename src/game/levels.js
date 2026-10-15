@@ -1,4 +1,4 @@
-export const GAME_VERSION = '1';
+export const GAME_VERSION = '2';
 
 function hash(value) {
   let result = 2166136261;
@@ -22,11 +22,11 @@ export function generateLevel({ seed = 'demo', artifacts = [], version = GAME_VE
   const fingerprint = `${version}:${seed}:${artifacts.map((artifact) => artifact.signature || artifact.id || '').join(',')}`;
   const courseHash = hash(fingerprint);
   const random = randomSource(courseHash);
-  const names = ['Entrance', 'Transaction Gallery', 'Laser Corridor', 'Security Chamber', 'Main Vault', 'Escape Route'];
-  const zones = names.map((name, index) => ({ name, start: index * 24, end: (index + 1) * 24 }));
+  const names = ['Fresh Produce', 'Grocery Aisles', 'Frozen Section', 'Security Office', 'Checkout Escape'];
+  const zones = names.map((name, index) => ({ name, start: index * 24, end: index === 4 ? 144 : (index + 1) * 24 }));
   const platforms = [];
   const positions = [];
-  for (let zone = 0; zone < zones.length; zone += 1) {
+  for (let zone = 0; zone < 6; zone += 1) {
     const start = zone * 24;
     const offset = (random() - 0.5) * 1.1;
     platforms.push({ id: `floor-${zone}`, x: start + 12, y: 0, w: 24, h: 1.2, floor: true });
@@ -53,9 +53,9 @@ export function generateLevel({ seed = 'demo', artifacts = [], version = GAME_VE
   return {
     seed: String(seed), id: `v${version}-${courseHash.toString(36)}`, version, length: 144, platforms, artifacts: levelArtifacts, lasers,
     enemies: [
-      { id: 'drone-0', type: 'drone', x: 35, y: 4.7, minX: 28, maxX: 46 },
+      { id: 'cart-0', type: 'cart', x: 35, y: 0, minX: 32, maxX: 40 },
       { id: 'guardian-0', type: 'guardian', x: 85, y: 0, minX: 82, maxX: 88 },
-      { id: 'drone-1', type: 'drone', x: 104, y: 4.8, minX: 98, maxX: 117 },
+      { id: 'cart-1', type: 'cart', x: 69, y: 0, minX: 66, maxX: 71 },
       { id: 'guardian-1', type: 'guardian', x: 133, y: 0, minX: 130, maxX: 136 },
     ],
     cameras: [{ id: 'camera-0', x: 39, y: 5.3 }, { id: 'camera-1', x: 86, y: 5.3 }, { id: 'camera-2', x: 113, y: 5.3 }],

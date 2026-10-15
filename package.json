@@ -8,17 +8,13 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --test tests/*.test.js",
-    "test:e2e": "playwright test",
-    "models": "node scripts/generate-models.js"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@react-three/drei": "^10.7.6",
-    "@react-three/fiber": "^9.3.0",
     "gsap": "^3.13.0",
     "motion": "^12.23.24",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "three": "^0.180.0"
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",

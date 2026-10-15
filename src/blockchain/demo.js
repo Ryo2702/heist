@@ -14,8 +14,8 @@ export const DEMO_ARTIFACTS = TYPES.map(([type, label], i) => ({
   status: type === 'failed' ? 'failed' : 'success', feeLamports: type === 'high-fee' ? 125_000 : 5000,
   solChange: type === 'sol' ? (i + 1) * 0.25 : null, tokenChanges: [], type, label,
   sample: true, detailsAvailable: true, programs: [],
-  description: 'Fictional sample transaction for the offline demo. This is game loot, not a blockchain asset.',
-  rule: type === 'high-fee' ? 'Demo rarity rule: sample fee ≥ 100,000 lamports.' : null,
+  description: 'Fictional sample transaction for the built-in course. This is game loot, not a blockchain asset.',
+  rule: type === 'high-fee' ? 'Sample rarity rule: sample fee ≥ 100,000 lamports.' : null,
 }));
 
 export function createDemoCourse() {

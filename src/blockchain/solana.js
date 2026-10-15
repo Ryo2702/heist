@@ -44,21 +44,21 @@ async function rpc(method, params, signal) {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
     });
-    if (response.status === 429) throw rpcError('Solana RPC is rate limiting requests. Wait a moment and retry, or play the demo.', 'RATE_LIMIT');
-    if (!response.ok) throw rpcError(`Solana RPC is temporarily unavailable (HTTP ${response.status}). Retry or play the demo.`, 'UNAVAILABLE');
+    if (response.status === 429) throw rpcError('Solana RPC is rate limiting requests. Wait a moment and retry.', 'RATE_LIMIT');
+    if (!response.ok) throw rpcError(`Solana RPC is temporarily unavailable (HTTP ${response.status}). Please try again shortly.`, 'UNAVAILABLE');
     const payload = await response.json();
     if (payload.error) {
       if (payload.error.code === -32015) throw rpcError('This transaction version is not supported by this game yet.', 'UNSUPPORTED_VERSION');
       if (payload.error.code === 429 || /rate|too many/i.test(payload.error.message || '')) throw rpcError('Solana RPC is rate limiting requests. Wait a moment and retry.', 'RATE_LIMIT');
-      throw rpcError('The Solana RPC service could not read this history. Retry or play the demo.', 'RPC_ERROR');
+      throw rpcError('The Solana RPC service could not read this history. Please try again shortly.', 'RPC_ERROR');
     }
     if (!Object.hasOwn(payload, 'result')) throw rpcError('The RPC service returned an invalid response.', 'INVALID_RESPONSE');
     return payload.result;
   } catch (error) {
     if (signal?.aborted) throw signal.reason || new DOMException('Request cancelled', 'AbortError');
-    if (timedOut) throw rpcError('Solana RPC timed out. Retry or play the demo.', 'TIMEOUT');
+    if (timedOut) throw rpcError('Solana RPC timed out. Please try again shortly.', 'TIMEOUT');
     if (error.code) throw error;
-    throw rpcError('Could not reach Solana RPC. Check your connection, retry, or play the demo.', 'NETWORK');
+    throw rpcError('Could not reach Solana RPC. Check your connection and retry.', 'NETWORK');
   } finally {
     clearTimeout(timeout);
     signal?.removeEventListener('abort', abort);
@@ -160,7 +160,7 @@ export async function fetchWalletArtifacts(address, { signal, onProgress, before
     commitment: 'confirmed', limit: TRANSACTION_LIMIT, ...(before ? { before } : {}),
   }], signal);
   if (!Array.isArray(rows) || rows.length > TRANSACTION_LIMIT || rows.some((row) => !isValidSignature(row?.signature))) throw rpcError('The RPC returned malformed transaction signatures.', 'INVALID_RESPONSE');
-  if (!rows.length) throw rpcError('No confirmed transactions were found for this address. Try another public wallet or play the demo.', 'EMPTY_HISTORY');
+  if (!rows.length) throw rpcError('No confirmed transactions were found for this address. Try another public wallet.', 'EMPTY_HISTORY');
   if (new Set(rows.map((row) => row.signature)).size !== rows.length) throw rpcError('The RPC returned duplicate transactions.', 'INVALID_RESPONSE');
   const artifacts = new Array(rows.length);
   const warnings = [];

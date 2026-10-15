@@ -1,56 +1,62 @@
-import { Component, Suspense, useEffect, useRef, useState } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { stepGame, makeSnapshot } from './engine.js';
-import { sampleReplay } from './replay.js';
-import Scene from './Scene.jsx';
-
-class CanvasBoundary extends Component {
-  state = { error: false };
-  static getDerivedStateFromError() { return { error: true }; }
-  render() {
-    if (this.state.error) return <div className="canvas-error"><strong>Graphics could not start</strong><p>SOL HEIST needs a browser with WebGL. Enable hardware acceleration and reload.</p><button className="button secondary" onClick={() => location.reload()}>Reload graphics</button></div>;
-    return this.props.children;
-  }
-}
-
-function Simulation({ game, mode, paused, input, onTick, onFinish, audio, replay, replayTimeRef, speed, onReplayEnd, onSlow }) {
-  const accumulator = useRef(0), hudTime = useRef(0), eventsSeen = useRef(0), finished = useRef(false), slowFrames = useRef(0);
-  useEffect(() => { accumulator.current = 0; hudTime.current = 0; eventsSeen.current = 0; finished.current = false; }, [game, mode]);
-  useFrame((_, delta) => {
-    if (delta > .046 && mode === 'playing' && ++slowFrames.current === 90) onSlow();
-    if (paused || document.hidden || mode === 'menu') { accumulator.current = 0; return; }
-    const dt = Math.min(delta, .075);
-    if (mode === 'playing') {
-      accumulator.current += dt;
-      while (accumulator.current >= 1 / 120) {
-        stepGame(game, input.current, 1 / 120);
-        input.current.jumpPressed = false;
-        accumulator.current -= 1 / 120;
-      }
-      for (let i = eventsSeen.current; i < game.events.length; i++) audio.play(game.events[i].type);
-      eventsSeen.current = game.events.length;
-      if (!finished.current && ['won', 'lost'].includes(game.status)) { finished.current = true; onFinish(game); }
-    } else if (mode === 'replay' && replay) {
-      const frame = sampleReplay(replay.frames, replayTimeRef.current);
-      const cinematicSpeed = ['jump', 'jumping', 'double-jump'].includes(frame?.animation) ? .58 : 1;
-      replayTimeRef.current = Math.min(replay.time, replayTimeRef.current + dt * speed * cinematicSpeed);
-      if (frame) Object.assign(game.player, frame, { vx: frame.animation === 'run' ? 6 : 0 });
-      game.time = replayTimeRef.current;
-      game.collected = new Set(replay.events.filter((e) => e.type === 'pickup' && e.time <= game.time).map((e) => e.id || e.artifactId));
-      game.vaultOpen = replay.events.some((e) => e.type === 'vault' && e.time <= game.time);
-      if (game.time >= replay.time && !finished.current) { finished.current = true; onReplayEnd(); }
-    }
-    hudTime.current += dt;
-    if (hudTime.current >= .1) { hudTime.current = 0; onTick(makeSnapshot(game)); }
-  }, -1);
-  return null;
-}
+import { useEffect, useRef } from 'react';
+import { FIXED_STEP, stepGame, makeSnapshot } from './engine.js';
+import { applyReplay } from './replay.js';
+import { createCoinAtlas } from './sprites.js';
+import { drawScene } from './Scene.js';
 
 export default function GameCanvas(props) {
-  const [autoLow, setAutoLow] = useState(false);
-  const reduced = props.quality === 'low' || autoLow;
-  return <CanvasBoundary><Canvas orthographic camera={{ position: [15, 5, 25], zoom: 40, near: .1, far: 150 }} dpr={reduced ? 1 : [1, 1.5]} gl={{ antialias: !reduced, alpha: false, powerPreference: 'high-performance' }} frameloop={props.paused ? 'demand' : 'always'} aria-label="Interactive 3D cyberpunk museum game">
-    <Simulation {...props} onSlow={() => setAutoLow(true)} />
-    <Suspense fallback={null}><Scene {...props} reducedQuality={reduced} ghostFrames={props.ghostFrames || null} /></Suspense>
-  </Canvas></CanvasBoundary>;
+  const canvas = useRef(null), current = useRef(props), atlas = useRef(null);
+  current.current = props;
+  useEffect(() => {
+    const element = canvas.current, context = element.getContext('2d', { alpha: false });
+    atlas.current ||= createCoinAtlas();
+    let raf, last = 0, accumulator = 0, hudTime = 0, eventsSeen = 0, finished = false;
+    let lastDraw, resized = true;
+    let previousGame, previousMode, cameraX = null, width = 0, height = 0, slowFrames = 0, reduced = false, previousQuality;
+    const resize = () => {
+      width = element.clientWidth; height = element.clientHeight;
+      const pixel = reduced || current.current.quality === 'low' ? 3 : 2;
+      element.width = Math.ceil(width / pixel); element.height = Math.ceil(height / pixel);
+      context.imageSmoothingEnabled = false; resized = true;
+    };
+    const observer = new ResizeObserver(resize); observer.observe(element); resize();
+    const frame = (now) => {
+      const p = current.current, { game, mode, paused } = p;
+      const delta = last ? Math.min((now - last) / 1000, .075) : 0; last = now;
+      if (p.quality !== previousQuality) { previousQuality = p.quality; resize(); }
+      if (game !== previousGame || mode !== previousMode) {
+        accumulator = 0; eventsSeen = 0; finished = false; cameraX = null;
+        previousGame = game; previousMode = mode;
+      }
+      const stopped = paused || document.hidden;
+      if (!stopped) {
+        if (mode === 'playing') {
+          if (delta > .046 && ++slowFrames === 90) { reduced = true; resize(); }
+          accumulator += delta;
+          while (accumulator >= FIXED_STEP) {
+            stepGame(game, p.input.current, FIXED_STEP);
+            p.input.current.jumpPressed = false;
+            accumulator -= FIXED_STEP;
+          }
+          for (let i = eventsSeen; i < game.events.length; i++) p.audio.play(game.events[i].type);
+          eventsSeen = game.events.length;
+        } else if (mode === 'replay' && p.replay) {
+          p.replayTimeRef.current = Math.min(p.replay.time, p.replayTimeRef.current + delta * p.speed);
+          applyReplay(game, p.replay, p.replayTimeRef.current);
+        }
+        hudTime += delta;
+        if (hudTime >= .1 && mode !== 'menu') { hudTime = 0; p.onTick(makeSnapshot(game)); }
+      } else accumulator = 0;
+      if (!document.hidden && width && height && (!stopped || p !== lastDraw || resized)) {
+        cameraX = drawScene(context, { ...p, width, height, cameraX, delta: stopped ? 0 : delta, atlas: atlas.current });
+        lastDraw = p; resized = false;
+      }
+      if (!finished && mode === 'playing' && ['won', 'lost'].includes(game.status)) { finished = true; p.onFinish(game); }
+      if (!finished && mode === 'replay' && p.replay && game.time >= p.replay.time) { finished = true; p.onReplayEnd(); }
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => { cancelAnimationFrame(raf); observer.disconnect(); };
+  }, []);
+  return <canvas ref={canvas} aria-label="SOL HEIST supermarket platformer. Move with A/D, jump with Space, slide with Down, sprint with Shift, sneak with C, interact with E." role="img" />;
 }

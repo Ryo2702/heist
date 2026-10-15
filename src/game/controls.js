@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 const bindings = {
   KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right',
   Space: 'jump', KeyW: 'jump', ArrowUp: 'jump', ShiftLeft: 'sprint', ShiftRight: 'sprint',
-  KeyS: 'slide', ArrowDown: 'slide', KeyE: 'interact',
+  KeyC: 'sneak', KeyS: 'slide', ArrowDown: 'slide', KeyE: 'interact',
 };
 
 export function useControls(active, onPause) {
