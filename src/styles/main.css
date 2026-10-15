@@ -28,3 +28,18 @@
 
 .health i{transform:none}.world-canvas{background:#f6e7c8}
 .wallet-connect{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;font:700 8px var(--mono)}.wallet-connect button{display:flex;align-items:center;gap:6px;background:none;padding:5px 0;color:#284c34;font:inherit;text-decoration:underline;text-underline-offset:3px}.wallet-connect button:disabled{opacity:.6;cursor:wait}.wallet-connect a{color:#74664f;text-underline-offset:3px}.wallet-connect button:focus-visible,.wallet-connect a:focus-visible{outline:2px solid #284c34;outline-offset:4px}
+
+/* Keep the jump action legible against the supermarket scenery. */
+.desktop-controls{flex-wrap:wrap;row-gap:6px;color:#49352c;font-size:10px;background:#fff9eb;border:2px solid #49352c;padding:8px 12px}
+.desktop-controls .jump-hint{background:#284c34;color:#fff9eb;padding:8px 10px;font-size:13px;font-weight:bold;gap:8px}
+.jump-hint kbd{height:30px;font-size:12px;border-color:#fff9eb}
+.jump-hint small{font-size:8px;letter-spacing:0}
+.touch-controls{bottom:max(18px,env(safe-area-inset-bottom));align-items:flex-end}
+.touch-controls>div{align-items:flex-end}
+.touch-controls .touch-jump{width:76px;height:76px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:#f5ce70;color:#49352c;border:3px solid #49352c;box-shadow:3px 4px 0 #49352c;font-size:32px;line-height:1}
+.touch-jump strong{font:700 14px var(--mono)}
+.touch-controls .touch-jump:active{background:#fff0cb;transform:translateY(2px);box-shadow:1px 2px 0 #49352c}
+.touch-controls button:focus-visible{outline:3px solid #a83b52;outline-offset:4px}
+@media(any-pointer:coarse){.desktop-controls{display:none}.touch-controls{display:flex}}
+@media(max-width:450px){.touch-controls .touch-jump{width:66px;height:72px}.jump-hint small{display:none}.desktop-controls{gap:6px;font-size:8px}}
+@media(max-height:600px) and (orientation:landscape){.touch-controls .touch-jump{width:66px;height:64px}.touch-controls{bottom:max(10px,env(safe-area-inset-bottom))}.desktop-controls{padding:4px 8px}.desktop-controls .jump-hint{padding:4px 8px}.jump-hint small{display:none}}
